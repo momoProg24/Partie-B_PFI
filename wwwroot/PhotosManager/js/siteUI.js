@@ -71,6 +71,7 @@ function attachCmd() {
     $('#renderManageUsersMenuCmd').on('click', renderManageUsers);
     $('#editProfilCmd').on('click', renderEditProfilForm);
     $('#aboutCmd').on("click", renderAbout);
+    $('#newPhotoCmd').on("click",renderAddNewPhoto)
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Header management
@@ -755,5 +756,73 @@ function getFormData($form) {
         jsonObject[control.name] = control.value.replace(removeTag, "");
     });
     return jsonObject;
+}
+////////
+function renderAddNewPhoto()/////////////
+{
+    noTimeout();
+    eraseContent();
+    UpdateHeader("Ajout de photos", "addPic");
+    //$("#newPhotoCmd").hide();
+    $("#content").append(`
+        <br/>
+        <form class="form" id="uploadNewPicForm"'>
+            
+               
+            <fieldset>
+                <legend>Informations</legend>
+                <input  type="text" 
+                        class="form-control Alpha" 
+                        name="Name" 
+                        id="Name"
+                        placeholder="Titre" 
+                        required 
+                        RequireMessage = 'Veuillez entrer un titre'
+                        InvalidMessage = 'Titre invalide'/>
+
+                        <textarea
+                        class="form-control Alpha"
+                        name="Description"
+                        id="Description"
+                        placeholder="Description"
+                        required
+                    ></textarea>
+
+                <input  type="checkbox"   
+                        name="Share" 
+                        id="Share" />
+
+                <label for="Share">Partagée</label>
+
+            </fieldset>
+            <fieldset>
+                <legend>Image</legend>
+                <div class='imageUploader' 
+                        newImage='true' 
+                        controlId='Image' 
+                        imageSrc='images/PhotoCloudLogo.png' 
+                        waitingImage="images/Loading_icon.gif">
+            </div>
+            </fieldset>
+   
+            <input type='submit' name='submit' id='saveUser' value="Enregistrer" class="form-control btn-primary">
+        </form>
+        <div class="cancel">
+            <button class="form-control btn-secondary" id="abortCreateProfilCmd">Annuler</button>
+        </div>
+    `);
+    //$('#loginCmd').on('click', renderLoginForm);
+    initFormValidation(); // important do to after all html injection!
+    initImageUploaders();
+    $('#abortCreateProfilCmd').on('click', renderPhotos);
+    //addConflictValidation(API.checkConflictURL(), 'Email', 'saveUser');
+    $('#uploadNewPicForm').on("submit", function (event) {
+        let photo = getFormData($('#uploadNewPicForm'));
+        //delete profil.matchedPassword;
+        //delete profil.matchedEmail;
+        event.preventDefault();
+        showWaitingGif();
+        API.CreatePhoto(photo);
+    });
 }
 
