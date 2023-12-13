@@ -1,3 +1,4 @@
+
 //<span class="cmdIcon fa-solid fa-ellipsis-vertical"></span>
 let contentScrollPosition = 0;
 let sortType = "date";
@@ -71,7 +72,7 @@ function attachCmd() {
     $('#renderManageUsersMenuCmd').on('click', renderManageUsers);
     $('#editProfilCmd').on('click', renderEditProfilForm);
     $('#aboutCmd').on("click", renderAbout);
-    $('#newPhotoCmd').on("click",renderAddNewPhoto)
+    $('#newPhotoCmd').on("click", renderAddNewPhoto)
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Header management
@@ -355,8 +356,25 @@ async function renderPhotos() {
 }
 async function renderPhotosList() {
     eraseContent();
-    $("#content").append("<h2> En contruction </h2>");
+    let content = "";
+    let photos = await API.GetPhotos("");
+    console.log(photos);
+    if (photos != null) {
+        photos.data.forEach(user => {
+            content += `<h3>${user.Date}</h3>`;
+        })
+        console.log
+        $("#content").append(`${content}`
+        );
+    }
+    else {
+        renderError("Oh non!!");
+    }
 }
+async function renderPhoto() {
+
+}
+
 function renderVerify() {
     eraseContent();
     UpdateHeader("Vérification", "verify");
@@ -758,23 +776,35 @@ function getFormData($form) {
     return jsonObject;
 }
 ////////
-function renderAddNewPhoto()/////////////
+function timeNow() {
+    const now = new Date();
+    return Math.round(now.getTime() / 1000);
+}
+async function renderAddNewPhoto()/////////////
 {
     noTimeout();
     eraseContent();
     UpdateHeader("Ajout de photos", "addPic");
+    let loggedUser = API.retrieveLoggedUser();
+    if (loggedUser == null) {
+        renderError();
+        console.log("Whyyyyyyyyy");
+    }
+    //const now = new Date();
+    //return Math.round(now.getTime() / 1000);
     //$("#newPhotoCmd").hide();
     $("#content").append(`
         <br/>
         <form class="form" id="uploadNewPicForm"'>
-            
+            <input type="hidden" name="OwnerId" value="${loggedUser.Id}" />
+            <input type="hidden" name="Date" value="" />
                
             <fieldset>
                 <legend>Informations</legend>
                 <input  type="text" 
                         class="form-control Alpha" 
-                        name="Name" 
-                        id="Name"
+                        name="Title" 
+                        id="Title"
                         placeholder="Titre" 
                         required 
                         RequireMessage = 'Veuillez entrer un titre'
@@ -789,7 +819,7 @@ function renderAddNewPhoto()/////////////
                     ></textarea>
 
                 <input  type="checkbox"   
-                        name="Share" 
+                        name="Shared" 
                         id="Share" />
 
                 <label for="Share">Partagée</label>
@@ -817,13 +847,27 @@ function renderAddNewPhoto()/////////////
     initImageUploaders();
     $('#abortCreateProfilCmd').on('click', renderPhotos);
     //addConflictValidation(API.checkConflictURL(), 'Email', 'saveUser');
-    $('#uploadNewPicForm').on("submit", function (event) {
+    $('#uploadNewPicForm').on("submit", async function (event) {
         let photo = getFormData($('#uploadNewPicForm'));
+
+        if (photo.Shared == "on") {
+            photo.Shared = true;
+        }
+        else {
+            photo.Shared = false;
+        }
+        photo.Date = timeNow();
         //delete profil.matchedPassword;
         //delete profil.matchedEmail;
         event.preventDefault();
         showWaitingGif();
-        API.CreatePhoto(photo);
+        let result = await API.CreatePhoto(photo);
+        if (result) {
+            render
+        }
+        else {
+            renderError("Un problème est survenu!");
+        }
     });
 }
 
