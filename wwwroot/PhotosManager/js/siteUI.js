@@ -811,6 +811,7 @@ function renderAddNewPhoto()/////////////
             <button class="form-control btn-secondary" id="abortCreateProfilCmd">Annuler</button>
         </div>
     `);
+    
     //$('#loginCmd').on('click', renderLoginForm);
     initFormValidation(); // important do to after all html injection!
     initImageUploaders();
