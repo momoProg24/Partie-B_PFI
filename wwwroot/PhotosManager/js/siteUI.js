@@ -1,5 +1,11 @@
 
 //<span class="cmdIcon fa-solid fa-ellipsis-vertical"></span>
+/*
+Questions au prof:
+Comment gérer le infinite scroll ou est-ce qu'on a pas besoin de le gérer
+Comment on utilise votre fonction UpdateHeader?
+Est ce qu' il suffit juste de rajouter les icones manquant dans votre version pour le header ou vous avez fait sa pour une autre raison?
+*/
 let contentScrollPosition = 0;
 let sortType = "date";
 let keywords = "";
@@ -96,6 +102,7 @@ function loggedUserMenu() {
             <div class="dropdown-divider"></div>
             <span class="dropdown-item" id="listPhotosMenuCmd">
                 <i class="menuIcon fa fa-image mx-2"></i> Liste des photos
+                Mettre les icones ici!!!!!!!!!!!!!*******************************************************************************************************************************
             </span>
         `;
     }
@@ -354,44 +361,199 @@ async function renderPhotos() {
         renderLoginForm();
     }
 }
+async function renderModifyPhoto(id) {
+    eraseContent();
+    let photo = await API.GetPhotosById(id);
+    checkbox = photo.Shared ? "checked" : "";
+    $("#content").append(`
+    <br/>
+    <form class="form" id="modifyPicForm"'>
+    <input type="hidden" name="Id" value="${photo.Id}" />
+        <input type="hidden" name="OwnerId" value="${photo.OwnerId}" />
+        <input type="hidden" name="Date" value="${photo.Date}" />
+           
+        <fieldset>
+            <legend>Informations</legend>
+            <input  type="text" 
+                    class="form-control Alpha" 
+                    name="Title" 
+                    id="Title"
+                    placeholder="Titre" 
+                    value="${photo.Title}"
+                    required 
+                    RequireMessage = 'Veuillez entrer un titre'
+                    InvalidMessage = 'Titre invalide'/>
+
+                    <textarea
+                    class="form-control Alpha"
+                    name="Description"
+                    id="Description"
+                    placeholder="Description"
+                    required
+                >${photo.Description}</textarea>
+
+            <input  type="checkbox"   
+                    name="Shared" 
+                    id="Share" 
+                    ${checkbox}
+                    />
+
+            <label for="Share">Partagée</label>
+
+        </fieldset>
+        <fieldset>
+            <legend>Image</legend>
+            <div class='imageUploader' 
+                    newImage='false' 
+                    controlId='Image' 
+                    imageSrc='${photo.Image}' 
+                    waitingImage="images/Loading_icon.gif">
+        </div>
+        </fieldset>
+
+        <input type='submit' name='submit' id='saveUser' value="Enregistrer" class="form-control btn-primary">
+    </form>
+    <div class="cancel">
+        <button class="form-control btn-secondary" id="abortModidyPhotoCmd">Annuler</button>
+    </div>
+`);
+    initFormValidation(); // important do to after all html injection!
+    initImageUploaders();
+    $('#modifyPicForm').on("submit", function (event) {
+        let photo = getFormData($('#modifyPicForm'));
+        console.log(photo);
+        event.preventDefault();
+        showWaitingGif();
+        if (photo.Shared == "on") {
+            photo.Shared = true;
+        }
+        else {
+            photo.Shared = false;
+        }
+        let result = API.UpdatePhoto(photo)
+        if (result) {
+            renderPhotosList();
+        }
+        else {
+            renderError();
+        }
+    });
+    $('#abortModidyPhotoCmd').on("click", function () {
+        renderPhotosList();
+    });
+
+}
+async function renderDeletePhoto(id) {
+    timeout();
+    let loggedUser = await API.retrieveLoggedUser();
+    if (loggedUser) {
+        let photoToDelete = await API.GetPhotosById(id);
+        if (!API.error) {
+            eraseContent();
+            UpdateHeader("Retrait de photo", "deletePhoto");
+            $("#newPhotoCmd").hide();
+            $("#content").append(`
+                <div class="content loginForm">
+                    <br>
+                        <div class="form">
+                        <h4> Voulez-vous vraiment effacer cette photo? </h4>
+                        <span class="photoTitle">${photoToDelete.Title}</span>
+                        <div class="photoImage" photoId=${photoToDelete.Id}  style="background-image:url('${photoToDelete.Image}')">
+                        </div>
+            </div>
+                    <div class="form" >
+                        <button class="form-control btn-danger"  id="deletePhotoCmd">Effacer</button>
+                        <br>
+                        <button class="form-control btn-secondary" id="abortPhotoAccountCmd">Annuler</button>
+                    </div>
+                </div>
+            `);
+            $("#deletePhotoCmd").on("click", async function () {
+                let result = await API.DeletePhoto(id);
+                if (result) {
+                    renderPhotosList();
+                }
+                else {
+                    renderError();
+                }
+            });
+            $("#abortPhotoAccountCmd").on("click", renderPhotosList);
+        } else {
+            renderError("Une erreur est survenue");
+        }
+    }
+}
 async function renderPhotosList() {
     eraseContent();
+    let currentUser = await API.retrieveLoggedUser();
+    let contentImage = "";
     let photos = await API.GetPhotos();
     if (photos != null) {
-        photos.data.forEach(async(photo) => {
+        photos.data.forEach((photo) => {
             let date = convertToFrenchDate(photo.Date);
-            let user = (await API.GetAccount(photo.OwnerId)).data;
-            console.log(user);
-            if(user)
-            {
-            $("#contentImage").append( `
+            let shareIcon = photo.Shared ? `<img class="UserAvatarSmall" src="images/shared.png" />` : "";
+            let buttons = currentUser.Id == photo.Owner.Id ? `<span class="editCmd cmdIcon fa fa-pencil" editPhotoId="${photo.Id}" title="Modifier ${photo.Title}"></span>
+            <span class="deleteCmd cmdIcon fa fa-trash" deletePhotoId="${photo.Id}" title="Effacer ${photo.Title}"></span>` : "";
+            if (photo.OwnerId == currentUser.Id || photo.Shared)
+                contentImage += `
             <div class="photoLayout">
             <div class="photoTitleContainer">
             <span class="photoTitle">${photo.Title}</span>
+             ${buttons}
             </div>
-            <div class="photoImage" style="background-image:url('${photo.Image}')">
-            <img class="UserAvatarSmall" src="${user.Avatar}" />
+            <div class="photoImage" photoId=${photo.Id}  style="background-image:url('${photo.Image}')">
+            <img class="UserAvatarSmall" src="${photo.Owner.Avatar}" />
+            ${shareIcon}
             </div>
             <span class="photoCreationDate">${date}</span>
             </div>
-            `);
-            }
-            
+          `;
         })
         $("#content").append(
-        
-        `<div id="contentImage" class="photosLayout">
-        
+            `<div id="contentImage" class="photosLayout">
+           ${contentImage}
         </div>`
         );
+        $(".photoImage").on('click', function () {
+            let id = $(this).attr("photoId");
+            renderPhotoDetail(id);
+        })
+        $(".deleteCmd").on('click', function () {
+            let id = $(this).attr("deletePhotoId");
+            renderDeletePhoto(id);
+        })
+        $(".editCmd").on('click', function () {
+            let id = $(this).attr("editPhotoId");
+            renderModifyPhoto(id);
+        })
     }
     else {
         renderError("Oh non!!");
     }
 }
-function renderPhotoDetail() {
+async function renderPhotoDetail(id) {
+    let photo = await API.GetPhotosById(id);
+    if (photo != null) {
+        let date = convertToFrenchDate(photo.Date);
+        eraseContent();
+        $("#content").append(`
+       <div class="photoDetailsOwner">
+       <img class="UserAvatarSmall" src="${photo.Owner.Avatar}" />
+       <span style="margin-left:10px"> ${photo.Owner.Name}</span>       
+       </div>
+       <hr>
+       <span class="photoDetailsTitle">${photo.Title}</span>
+       <img class="photoDetailsLargeImage" src="${photo.Image}" />
+       <span class="photoDetailsCreationDate">${date}</span>
+       <div class="photoDetailsDescription">${photo.Description}</div>
+        `);
+    }
+    else {
+        renderError("Description introuvable!");
+    }
 
 }
+
 
 function renderVerify() {
     eraseContent();
@@ -797,6 +959,10 @@ function timeNow() {
     const now = new Date();
     return Math.round(now.getTime() / 1000);
 }
+function secondsToDateString(dateInSeconds, localizationId = 'fr-FR') {
+    const hoursOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' };
+    return new Date(dateInSeconds * 1000).toLocaleDateString(localizationId, hoursOptions);
+}
 async function renderAddNewPhoto()/////////////
 {
     noTimeout();
@@ -858,7 +1024,7 @@ async function renderAddNewPhoto()/////////////
             <button class="form-control btn-secondary" id="abortCreateProfilCmd">Annuler</button>
         </div>
     `);
-    
+
     //$('#loginCmd').on('click', renderLoginForm);
     initFormValidation(); // important do to after all html injection!
     initImageUploaders();
