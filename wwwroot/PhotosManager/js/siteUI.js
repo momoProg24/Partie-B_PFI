@@ -389,7 +389,7 @@ async function renderPhotosList() {
         renderError("Oh non!!");
     }
 }
-function renderPhoto() {
+function renderPhotoDetail() {
 
 }
 
