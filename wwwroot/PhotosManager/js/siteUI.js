@@ -356,22 +356,40 @@ async function renderPhotos() {
 }
 async function renderPhotosList() {
     eraseContent();
-    let content = "";
-    let photos = await API.GetPhotos("");
-    console.log(photos);
+    let photos = await API.GetPhotos();
     if (photos != null) {
-        photos.data.forEach(user => {
-            content += `<h3>${user.Date}</h3>`;
+        photos.data.forEach(async(photo) => {
+            let date = convertToFrenchDate(photo.Date);
+            let user = (await API.GetAccount(photo.OwnerId)).data;
+            console.log(user);
+            if(user)
+            {
+            $("#contentImage").append( `
+            <div class="photoLayout">
+            <div class="photoTitleContainer">
+            <span class="photoTitle">${photo.Title}</span>
+            </div>
+            <div class="photoImage" style="background-image:url('${photo.Image}')">
+            <img class="UserAvatarSmall" src="${user.Avatar}" />
+            </div>
+            <span class="photoCreationDate">${date}</span>
+            </div>
+            `);
+            }
+            
         })
-        console.log
-        $("#content").append(`${content}`
+        $("#content").append(
+        
+        `<div id="contentImage" class="photosLayout">
+        
+        </div>`
         );
     }
     else {
         renderError("Oh non!!");
     }
 }
-async function renderPhoto() {
+function renderPhoto() {
 
 }
 
@@ -769,7 +787,6 @@ function renderLoginForm() {
 function getFormData($form) {
     const removeTag = new RegExp("(<[a-zA-Z0-9]+>)|(</[a-zA-Z0-9]+>)", "g");
     var jsonObject = {};
-    console.log($form.serializeArray());
     $.each($form.serializeArray(), (index, control) => {
         jsonObject[control.name] = control.value.replace(removeTag, "");
     });
@@ -863,7 +880,7 @@ async function renderAddNewPhoto()/////////////
         showWaitingGif();
         let result = await API.CreatePhoto(photo);
         if (result) {
-            render
+            renderPhotosList();
         }
         else {
             renderError("Un problème est survenu!");
