@@ -487,6 +487,7 @@ async function renderPhotosList() {
     eraseContent();
     let currentUser = await API.retrieveLoggedUser();
     let contentImage = "";
+    let numberLike;
     let photos = await API.GetPhotos();
     if (photos != null) {
         photos.data.forEach((photo) => {
@@ -506,6 +507,7 @@ async function renderPhotosList() {
             ${shareIcon}
             </div>
             <span class="photoCreationDate">${date}</span>
+            <span class="likeCmd likesSummary photoCreationDate fa-regular fa-thumbs-up" likePhotoId="${photo.Id}" >${numberLike}</span>
             </div>
           `;
         })
@@ -525,6 +527,10 @@ async function renderPhotosList() {
         $(".editCmd").on('click', function () {
             let id = $(this).attr("editPhotoId");
             renderModifyPhoto(id);
+        })
+        $(".likeCmd").on('click', function () {
+            let id = $(this).attr("likePhotoId");
+            API.AddLike(id);
         })
     }
     else {

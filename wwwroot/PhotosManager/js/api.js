@@ -285,6 +285,12 @@ class API {
             });
         });
     }
+
+
+    static AddLike(id)
+    {
+        
+    }
 }
 
 
