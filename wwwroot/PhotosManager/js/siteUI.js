@@ -5,6 +5,7 @@ Questions au prof:
 Comment gérer le infinite scroll ou est-ce qu'on a pas besoin de le gérer
 Comment on utilise votre fonction UpdateHeader?
 Est ce qu' il suffit juste de rajouter les icones manquant dans votre version pour le header ou vous avez fait sa pour une autre raison?
+Est -ce que il faut utiliser le repositery de photoLikes dans photo et accounts
 */
 let contentScrollPosition = 0;
 let sortType = "date";
@@ -14,8 +15,10 @@ let Email = "";
 let EmailError = "";
 let passwordError = "";
 let currentETag = "";
+let currentETagPhotos = "";
 let currentViewName = "photosList";
 let delayTimeOut = 200; // seconds
+const periodicRefreshPeriod = 10;
 
 // pour la pagination
 let photoContainerWidth = 400;
@@ -36,6 +39,16 @@ function Init_UI() {
         renderLoginForm();
 }
 
+function start_Periodic_Refresh() {
+    setInterval(async () => {
+        let etag = await API.HeadLikes();
+        if (currentETag != etag) {
+            currentETag = etag;
+            renderPhotosList();
+        }
+    },
+        periodicRefreshPeriod * 1000);
+}
 // pour la pagination
 function getViewPortPhotosRanges() {
     // estimate the value of limit according to height of content
@@ -322,7 +335,7 @@ async function renderError(message) {
         `)
     ); */
 }
-function renderAbout() {
+async function renderAbout() {
     timeout();
     saveContentScrollPosition();
     eraseContent();
@@ -355,8 +368,10 @@ async function renderPhotos() {
     $("#newPhotoCmd").show();
     $("#abort").hide();
     let loggedUser = API.retrieveLoggedUser();
-    if (loggedUser)
+    if (loggedUser) {
+        start_Periodic_Refresh();
         renderPhotosList();
+    }
     else {
         renderLoginForm();
     }
@@ -431,7 +446,7 @@ async function renderModifyPhoto(id) {
             photo.Shared = false;
         }
         let result = API.UpdatePhoto(photo)
-        if (result) {
+        if (result != null) {
             renderPhotosList();
         }
         else {
@@ -470,7 +485,7 @@ async function renderDeletePhoto(id) {
             `);
             $("#deletePhotoCmd").on("click", async function () {
                 let result = await API.DeletePhoto(id);
-                if (result) {
+                if (result != null) {
                     renderPhotosList();
                 }
                 else {
@@ -483,34 +498,52 @@ async function renderDeletePhoto(id) {
         }
     }
 }
+
 async function renderPhotosList() {
     eraseContent();
     let currentUser = await API.retrieveLoggedUser();
     let contentImage = "";
-    let numberLike;
+    let numberOfLikes = 0;
+    let liked = "";
+    let title = "";
     let photos = await API.GetPhotos();
     if (photos != null) {
+        let likes = await API.GetLikes();
+        currentETag = likes.Etag;
         photos.data.forEach((photo) => {
+            title = "";
+            liked = likes.data.find(like => like.ImageId == photo.Id && currentUser.Id == like.UserId) != null ? "fa fa-thumbs-up" : "fa-regular fa-thumbs-up";
+            numberOfLikes = likes.data.filter(like => like.ImageId == photo.Id);
+            numberOfLikes.forEach(like => {
+                title += like.OwnerName + "\n"
+            })
             let date = convertToFrenchDate(photo.Date);
             let shareIcon = photo.Shared ? `<img class="UserAvatarSmall" src="images/shared.png" />` : "";
             let buttons = currentUser.Id == photo.Owner.Id ? `<span class="editCmd cmdIcon fa fa-pencil" editPhotoId="${photo.Id}" title="Modifier ${photo.Title}"></span>
-            <span class="deleteCmd cmdIcon fa fa-trash" deletePhotoId="${photo.Id}" title="Effacer ${photo.Title}"></span>` : "";
+                <span class="deleteCmd cmdIcon fa fa-trash" deletePhotoId="${photo.Id}" title="Effacer ${photo.Title}"></span>` : "";
+
             if (photo.OwnerId == currentUser.Id || photo.Shared)
                 contentImage += `
-            <div class="photoLayout">
+        <div class="photoLayout">
             <div class="photoTitleContainer">
-            <span class="photoTitle">${photo.Title}</span>
-             ${buttons}
+                   <span class="photoTitle">${photo.Title}</span>
+                   ${buttons}
             </div>
-            <div class="photoImage" photoId=${photo.Id}  style="background-image:url('${photo.Image}')">
-            <img class="UserAvatarSmall" src="${photo.Owner.Avatar}" />
-            ${shareIcon}
-            </div>
-            <span class="photoCreationDate">${date}</span>
-            <span class="likeCmd likesSummary photoCreationDate fa-regular fa-thumbs-up" likePhotoId="${photo.Id}" >${numberLike}</span>
-            </div>
-          `;
+                 <div class="photoImage" photoId=${photo.Id}  style="background-image:url('${photo.Image}')">
+                  <img class="UserAvatarSmall" src="${photo.Owner.Avatar}" />
+                ${shareIcon}
+                  </div>
+            <div style="display:grid; grid-template-columns:300px 10px 30px">
+              <span class="photoCreationDate">${date}</span>
+                <div class="likesSummary">
+                  <span class="photoCreationDate">${numberOfLikes.length}</span>
+                       <span class="cmdIcon likeCmd ${liked}" likeId="${photo.Id}" title="${title}" ></span>
+                  </div>
+             </div>
+        </div>
+              `;
         })
+
         $("#content").append(
             `<div id="contentImage" class="photosLayout">
            ${contentImage}
@@ -528,10 +561,22 @@ async function renderPhotosList() {
             let id = $(this).attr("editPhotoId");
             renderModifyPhoto(id);
         })
-        $(".likeCmd").on('click', function () {
-            let id = $(this).attr("likePhotoId");
-            API.AddLike(id);
+        $(".likeCmd").on('click', async function () {
+            console.log("Like pressed");
+            let id = $(this).attr("likeId");
+            let like = await API.GetUserLike(id, currentUser.Id);
+            console.log(like);
+            if (like.length != 0) {
+                let Etag = await API.RemoveLike(like[0].Id);
+                currentETag = Etag.ETag
+            }
+            else {
+                let data = { ImageId: id, UserId: currentUser.Id }
+                let Etag = await API.AddLike(data);
+                currentETag = Etag.ETag;
+            }
         })
+
     }
     else {
         renderError("Oh non!!");
