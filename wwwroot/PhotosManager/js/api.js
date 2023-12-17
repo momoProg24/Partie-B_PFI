@@ -295,7 +295,18 @@ class API {
             });
         });
     }
-
+    static async HeadPhotos() {
+        return new Promise(resolve => {
+            $.ajax({
+                url: serverHost + photos_API,
+                type: 'HEAD',
+                contentType: 'text/plain',
+                headers: API.getBearerAuthorizationToken(),
+                complete: data => { resolve(data.getResponseHeader('ETag')); },
+                error: (xhr) => { console.log(xhr); resolve(null); }
+            });
+        });
+    }
 
     static AddLike(data) {
         API.initHttpState();
@@ -339,6 +350,18 @@ class API {
             });
         });
     }
+    static async GetLike(id) {
+        API.initHttpState();
+        return new Promise(resolve => {
+            $.ajax({
+                url: serverHost + photoLikes_API + "/" + id,
+                type: 'GET',
+                headers: API.getBearerAuthorizationToken(),
+                success: data => { resolve(data); },
+                error: xhr => { API.setHttpErrorState(xhr); resolve(false); }
+            });
+        });
+    }
     static async HeadLikes() {
         return new Promise(resolve => {
             $.ajax({
@@ -369,7 +392,6 @@ class API {
 
 
     static RemoveLike(id) {
-        API.initHttpState();
         API.initHttpState();
         return new Promise(resolve => {
             $.ajax({

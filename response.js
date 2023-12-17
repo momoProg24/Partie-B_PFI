@@ -22,7 +22,7 @@ export default class Response {
         }
     }
     end(content = null) {
-        console.log("status:",this.res.statusCode, this.errorContent);
+        console.log("status:", this.res.statusCode, this.errorContent);
         if (content)
             this.res.end(content);
         else
@@ -30,7 +30,7 @@ export default class Response {
         return true;
     }
 
-  /////////////////////////////////////////////// 200 ///////////////////////////////////////////////////////
+    /////////////////////////////////////////////// 200 ///////////////////////////////////////////////////////
 
     ok() { return this.status(200); }       // ok status
     ETag(ETag) {
@@ -48,7 +48,7 @@ export default class Response {
             this.res.writeHead(200, { 'content-type': 'application/json' });
         if (jsonObj != null) {
             if (!fromCache) // prevent from cache it again
-                this.AddInCache(jsonObj, ETag,  readAuthorization);
+                this.AddInCache(jsonObj, ETag, readAuthorization);
             let content = JSON.stringify(jsonObj);
             this.end(content);
         } else {
@@ -66,7 +66,7 @@ export default class Response {
         this.res.writeHead(201, { 'content-type': 'application/json' });
         return this.end(JSON.stringify(jsonObj));
     }
-    updated(jsonObj) {                      
+    updated(jsonObj) {
         this.res.writeHead(200, { 'content-type': 'application/json' });
         return this.end(JSON.stringify(jsonObj));
     }
@@ -91,6 +91,7 @@ export default class Response {
     unverifiedUser(errormessage = '') { return this.status(480, errormessage); }    // custom bad request status
     userNotFound(errormessage = '') { return this.status(481, errormessage); }    // custom bad request status
     wrongPassword(errormessage = '') { return this.status(482, errormessage); }   // custom bad request status
+    alreadyLogged(errormessage = '') { return this.status(483, errormessage); }
 
     /////////////////////////////////////////////// 500 ///////////////////////////////////////////////////////
 

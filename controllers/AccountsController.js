@@ -34,8 +34,13 @@ export default class AccountsController extends Controller {
                 if (user != null) {
                     if (user.Password == loginInfo.Password) {
                         user = this.repository.get(user.Id);
-                        let newToken = TokenManager.create(user);
-                        this.HttpContext.response.created(newToken);
+                        if (TokenManager.findUser(user.Id)) {
+                            this.HttpContext.response.alreadyLogged("User already logged");
+                        }
+                        else {
+                            let newToken = TokenManager.create(user);
+                            this.HttpContext.response.created(newToken);
+                        }
                     } else {
                         this.HttpContext.response.wrongPassword("Wrong password.");
                     }
@@ -199,7 +204,7 @@ export default class AccountsController extends Controller {
     // GET:account/remove/id
     remove(id) { // warning! this is not an API endpoint
         if (Authorizations.writeGranted(this.HttpContext, Authorizations.user())) {
-            
+
             this.tokensRepository.keepByFilter(token => token.User.Id != id);
             let previousAuthorization = this.authorizations;
             this.authorizations = Authorizations.user();

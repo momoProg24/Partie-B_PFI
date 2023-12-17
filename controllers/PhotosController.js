@@ -11,5 +11,8 @@ export default
         super(HttpContext, new Repository(new PhotoModel()), Authorizations.user());
         this.photoLikesRepository = new Repository(new PhotoLikeModel());
     }
-  
+    remove(id) {
+        super.remove(id);
+        this.photoLikesRepository.keepByFilter(like => like.ImageId != id)
+    }
 }

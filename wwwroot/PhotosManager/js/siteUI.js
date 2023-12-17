@@ -1,12 +1,4 @@
 
-//<span class="cmdIcon fa-solid fa-ellipsis-vertical"></span>
-/*
-Questions au prof:
-Comment gérer le infinite scroll ou est-ce qu'on a pas besoin de le gérer
-Comment on utilise votre fonction UpdateHeader?
-Est ce qu' il suffit juste de rajouter les icones manquant dans votre version pour le header ou vous avez fait sa pour une autre raison?
-Est -ce que il faut utiliser le repositery de photoLikes dans photo et accounts
-*/
 let contentScrollPosition = 0;
 let sortType = "date";
 let keywords = "";
@@ -17,12 +9,17 @@ let passwordError = "";
 let currentETag = "";
 let currentETagPhotos = "";
 let currentViewName = "photosList";
-let delayTimeOut = 200; // seconds
+let delayTimeOut = 200;// seconds
+let intervalId = 0;
+let likesChanged = false;
+let photosChanged = false;
 const periodicRefreshPeriod = 10;
 
+
 // pour la pagination
-let photoContainerWidth = 400;
-let photoContainerHeight = 400;
+let photoContainerWidth = 370;
+let photoContainerHeight = 345;
+let endOfData = false;
 let limit;
 let HorizontalPhotosCount;
 let VerticalPhotosCount;
@@ -40,14 +37,29 @@ function Init_UI() {
 }
 
 function start_Periodic_Refresh() {
-    setInterval(async () => {
-        let etag = await API.HeadLikes();
-        if (currentETag != etag) {
-            currentETag = etag;
-            renderPhotosList();
+    intervalId = setInterval(async () => {
+
+        let loggedUser = await API.retrieveLoggedUser();
+
+        if (loggedUser != null) {
+            let etag = await API.HeadLikes();
+            let etagPhotos = await API.HeadPhotos();
+            if (currentETag != etag) {
+                currentETag = etag;
+                renderPhotosList(true);
+            }
+
+            else if (currentETagPhotos != etagPhotos) {
+                currentETagPhotos = etagPhotos
+                renderPhotosList(true);
+            }
+
         }
     },
-        periodicRefreshPeriod * 1000);
+        periodicRefreshPeriod * 10);
+}
+function stop_Periodic_Refresh() {
+    clearInterval(intervalId); // Clear the interval
 }
 // pour la pagination
 function getViewPortPhotosRanges() {
@@ -75,29 +87,58 @@ function installWindowResizeHandler() {
         console.log('resize start');
     }).on('resizeend', function () {
         console.log('resize end');
-        if ($('#photosLayout') != null) {
+        if ($('#contentImage') != null) {
             getViewPortPhotosRanges();
             if (currentViewName == "photosList")
-                renderPhotosList();
+                endOfData = false;
+            renderPhotosList(true);
         }
     });
 }
 function attachCmd() {
     $('#loginCmd').on('click', renderLoginForm);
     $('#logoutCmd').on('click', logout);
-    $('#listPhotosCmd').on('click', renderPhotos);
-    $('#listPhotosMenuCmd').on('click', renderPhotos);
+    $('#listPhotosCmd').on('click', function () {
+        renderPhotosList(true)
+    });
+    $('#listPhotosMenuCmd').on('click', function () {
+        renderPhotosList(true)
+    });
     $('#editProfilMenuCmd').on('click', renderEditProfilForm);
     $('#renderManageUsersMenuCmd').on('click', renderManageUsers);
     $('#editProfilCmd').on('click', renderEditProfilForm);
     $('#aboutCmd').on("click", renderAbout);
-    $('#newPhotoCmd').on("click", renderAddNewPhoto)
+    $('#newPhotoCmd').on("click", function () {
+        saveContentScrollPosition();
+        renderAddNewPhoto();
+    })
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Header management
 function loggedUserMenu() {
     let loggedUser = API.retrieveLoggedUser();
     if (loggedUser) {
+        let icons = currentViewName == "photosList" ? `<div class="dropdown-divider"></div>
+        <span class="dropdown-item" id="sortByDateCmd">
+            <i class="menuIcon fa fa-fw mx-2"></i>
+            <i class="menuIcon fa fa-calendar mx-2"></i>
+             Photos par date de création
+        </span>
+        <span class="dropdown-item" id="sortByOwnersCmd">
+            <i class="menuIcon fa fa-fw mx-2"></i>
+            <i class="menuIcon fa fa-users mx-2"></i>
+            Photos par créateur
+        </span>
+        <span class="dropdown-item"  id="sortByLikesCmd">
+        <i class="menuIcon fa fa-fw mx-2"></i> 
+        <i class="menuIcon fa fa-heart mx-2"></i>
+            Photos les plus aimées
+        </span>
+        <span class="dropdown-item" id="ownerOnlyCmd">
+            <i class="menuIcon fa fa-fw mx-2"></i>
+            <i class="menuIcon fa fa-user mx-2"></i>
+            Mes photos
+        </span>`: "";
         let manageUserMenu = `
             <span class="dropdown-item" id="renderManageUsersMenuCmd">
                 <i class="menuIcon fas fa-user-cog mx-2"></i> Gestion des usagers
@@ -115,8 +156,8 @@ function loggedUserMenu() {
             <div class="dropdown-divider"></div>
             <span class="dropdown-item" id="listPhotosMenuCmd">
                 <i class="menuIcon fa fa-image mx-2"></i> Liste des photos
-                Mettre les icones ici!!!!!!!!!!!!!*******************************************************************************************************************************
             </span>
+               ${icons}
         `;
     }
     else
@@ -200,6 +241,7 @@ async function login(credential) {
         switch (API.currentStatus) {
             case 482: passwordError = "Mot de passe incorrect"; renderLoginForm(); break;
             case 481: EmailError = "Courriel introuvable"; renderLoginForm(); break;
+            case 483: loginMessage = "L'usager est déjà connecter!"; renderLoginForm(); break;
             default: renderError("Le serveur ne répond pas"); break;
         }
     } else {
@@ -218,6 +260,8 @@ async function login(credential) {
 }
 async function logout() {
     console.log('logout');
+    contentScrollPosition = 0;
+    stop_Periodic_Refresh();
     await API.logout();
     renderLoginForm();
 }
@@ -369,8 +413,10 @@ async function renderPhotos() {
     $("#abort").hide();
     let loggedUser = API.retrieveLoggedUser();
     if (loggedUser) {
+        currentETag = await API.HeadLikes();
+        currentETagPhotos = await API.HeadPhotos();
         start_Periodic_Refresh();
-        renderPhotosList();
+        renderPhotosList(true);
     }
     else {
         renderLoginForm();
@@ -379,6 +425,7 @@ async function renderPhotos() {
 async function renderModifyPhoto(id) {
     eraseContent();
     let photo = await API.GetPhotosById(id);
+    UpdateHeader("Modification d'une photo", "modfiyPhoto");
     checkbox = photo.Shared ? "checked" : "";
     $("#content").append(`
     <br/>
@@ -447,6 +494,7 @@ async function renderModifyPhoto(id) {
         }
         let result = API.UpdatePhoto(photo)
         if (result != null) {
+            currentETagPhotos = result.ETag
             renderPhotosList();
         }
         else {
@@ -486,6 +534,7 @@ async function renderDeletePhoto(id) {
             $("#deletePhotoCmd").on("click", async function () {
                 let result = await API.DeletePhoto(id);
                 if (result != null) {
+                    currentETagPhotos = result.ETag
                     renderPhotosList();
                 }
                 else {
@@ -499,87 +548,109 @@ async function renderDeletePhoto(id) {
     }
 }
 
-async function renderPhotosList() {
-    eraseContent();
+async function renderPhotosList(refresh = false) {
+    UpdateHeader('Liste des photos', 'photosList')
     let currentUser = await API.retrieveLoggedUser();
-    let contentImage = "";
-    let numberOfLikes = 0;
+    endOfData = false;
+    let photoCount = limit * (offset + 1);
+    console.log("Limit:" + limit);
+    console.log("Offset:" + offset);
+    let qs = refresh ? "?limit=" + photoCount + "&offset=" + 0 : "?limit=" + limit + "&offset=" + offset;
     let liked = "";
     let title = "";
-    let photos = await API.GetPhotos();
-    if (photos != null) {
-        let likes = await API.GetLikes();
-        currentETag = likes.Etag;
-        photos.data.forEach((photo) => {
-            title = "";
-            liked = likes.data.find(like => like.ImageId == photo.Id && currentUser.Id == like.UserId) != null ? "fa fa-thumbs-up" : "fa-regular fa-thumbs-up";
-            numberOfLikes = likes.data.filter(like => like.ImageId == photo.Id);
-            numberOfLikes.forEach(like => {
-                title += like.OwnerName + "\n"
-            })
-            let date = convertToFrenchDate(photo.Date);
-            let shareIcon = photo.Shared ? `<img class="UserAvatarSmall" src="images/shared.png" />` : "";
-            let buttons = currentUser.Id == photo.Owner.Id ? `<span class="editCmd cmdIcon fa fa-pencil" editPhotoId="${photo.Id}" title="Modifier ${photo.Title}"></span>
-                <span class="deleteCmd cmdIcon fa fa-trash" deletePhotoId="${photo.Id}" title="Effacer ${photo.Title}"></span>` : "";
+    let photos = await API.GetPhotos(qs);
+    if (!endOfData) {
+        if (photos != null) {
+            if (refresh) {
+                saveContentScrollPosition();
+                eraseContent();
+                $("#content").append($(`<div id='contentImage' class="photosLayout">`));
+            }
+            if (photos.data.length > 0) {
+                let likes = await API.GetLikes();
+                $("#content").off();
+                photos.data.forEach((photo) => {
+                    title = "";
+                    liked = likes.data.find(like => like.ImageId == photo.Id && currentUser.Id == like.UserId) != null ? "fa fa-thumbs-up" : "fa-regular fa-thumbs-up";
+                    numberOfLikes = likes.data.filter(like => like.ImageId == photo.Id);
+                    numberOfLikes.forEach(like => {
+                        title += like.OwnerName + "\n"
+                    })
+                    let date = convertToFrenchDate(photo.Date);
+                    let shareIcon = photo.Shared ? `<img class="UserAvatarSmall" src="images/shared.png" />` : "";
+                    let buttons = currentUser.Id == photo.Owner.Id ? `<span class="editCmd cmdIcon fa fa-pencil" editPhotoId="${photo.Id}" title="Modifier ${photo.Title}"></span>
+                        <span class="deleteCmd cmdIcon fa fa-trash" deletePhotoId="${photo.Id}" title="Effacer ${photo.Title}"></span>` : "";
 
-            if (photo.OwnerId == currentUser.Id || photo.Shared)
-                contentImage += `
-        <div class="photoLayout">
-            <div class="photoTitleContainer">
-                   <span class="photoTitle">${photo.Title}</span>
-                   ${buttons}
-            </div>
-                 <div class="photoImage" photoId=${photo.Id}  style="background-image:url('${photo.Image}')">
-                  <img class="UserAvatarSmall" src="${photo.Owner.Avatar}" />
-                ${shareIcon}
-                  </div>
-            <div style="display:grid; grid-template-columns:300px 10px 30px">
-              <span class="photoCreationDate">${date}</span>
-                <div class="likesSummary">
-                  <span class="photoCreationDate">${numberOfLikes.length}</span>
-                       <span class="cmdIcon likeCmd ${liked}" likeId="${photo.Id}" title="${title}" ></span>
-                  </div>
-             </div>
-        </div>
-              `;
-        })
-
-        $("#content").append(
-            `<div id="contentImage" class="photosLayout">
-           ${contentImage}
-        </div>`
-        );
-        $(".photoImage").on('click', function () {
-            let id = $(this).attr("photoId");
-            renderPhotoDetail(id);
-        })
-        $(".deleteCmd").on('click', function () {
-            let id = $(this).attr("deletePhotoId");
-            renderDeletePhoto(id);
-        })
-        $(".editCmd").on('click', function () {
-            let id = $(this).attr("editPhotoId");
-            renderModifyPhoto(id);
-        })
-        $(".likeCmd").on('click', async function () {
-            console.log("Like pressed");
-            let id = $(this).attr("likeId");
-            let like = await API.GetUserLike(id, currentUser.Id);
-            console.log(like);
-            if (like.length != 0) {
-                let Etag = await API.RemoveLike(like[0].Id);
-                currentETag = Etag.ETag
+                    if (photo.OwnerId == currentUser.Id || photo.Shared)
+                        $("#contentImage").append(`
+                        <div class="photoLayout">
+                        <div class="photoTitleContainer">
+                        <span class="photoTitle">${photo.Title}</span>
+                        ${buttons}
+                        </div>
+                        <div class="photoImage" photoId=${photo.Id}  style="background-image:url('${photo.Image}')">
+                        <img class="UserAvatarSmall" src="${photo.Owner.Avatar}" />
+                        ${shareIcon}
+                        </div>
+                        <div style="display:grid; grid-template-columns:300px 10px 30px">
+                        <span class="photoCreationDate">${date}</span>
+                        <div class="likesSummary">
+                        <span class="photoCreationDate">${numberOfLikes.length}</span>
+                        <span class="cmdIcon likeCmd ${liked}" likePhotoId="${photo.Id}"  title="${title}" ></span>
+                        </div>
+                        </div>
+                        </div>
+                        `)
+                })
+                $("#content").on("scroll", function () {
+                    console.log()
+                    if ($("#content").scrollTop() + $("#content").innerHeight() > ($("#contentImage").height() - photoContainerHeight)) {
+                        $("#content").off();
+                        ++offset;
+                        console.log(offset);
+                        // saveContentScrollPosition();
+                        renderPhotosList();
+                    }
+                });
+                $(".photoImage").on('click', function () {
+                    let id = $(this).attr("photoId");
+                    renderPhotoDetail(id);
+                })
+                $(".deleteCmd").on('click', function () {
+                    let id = $(this).attr("deletePhotoId");
+                    renderDeletePhoto(id);
+                })
+                $(".editCmd").on('click', function () {
+                    let id = $(this).attr("editPhotoId");
+                    renderModifyPhoto(id);
+                })
+                $(".likeCmd").on('click', async function () {
+                    console.log("Like pressed");
+                    currentETag = 1
+                    let id = $(this).attr("likePhotoId");
+                    let like = await API.GetUserLike(id, currentUser.Id);
+                    console.log(like);
+                    if (like.length != 0) {
+                        saveContentScrollPosition();
+                        let Etag = await API.RemoveLike(like[0].Id);
+                    }
+                    else {
+                        let data = { ImageId: id, UserId: currentUser.Id }
+                        saveContentScrollPosition();
+                        await API.AddLike(data);
+                    }
+                })
             }
             else {
-                let data = { ImageId: id, UserId: currentUser.Id }
-                let Etag = await API.AddLike(data);
-                currentETag = Etag.ETag;
+                endOfData = true;
             }
-        })
 
-    }
-    else {
-        renderError("Oh non!!");
+        }
+        else {
+            renderError("Oh non!!");
+        }
+        if (refresh)
+            restoreContentScrollPosition();
     }
 }
 async function renderPhotoDetail(id) {
@@ -952,9 +1023,11 @@ function renderExpiredSession() {
     noTimeout();
     loginMessage = "Votre session est expirée. Veuillez vous reconnecter.";
     logout();
+    endOfData = false;
     renderLoginForm();
 }
-function renderLoginForm() {
+async function renderLoginForm() {
+    stop_Periodic_Refresh();
     noTimeout();
     eraseContent();
     UpdateHeader("Connexion", "Login");
@@ -1079,7 +1152,7 @@ async function renderAddNewPhoto()/////////////
     //$('#loginCmd').on('click', renderLoginForm);
     initFormValidation(); // important do to after all html injection!
     initImageUploaders();
-    $('#abortCreateProfilCmd').on('click', renderPhotos);
+    $('#abortCreateProfilCmd').on('click', function () { renderPhotosList(true) });
     //addConflictValidation(API.checkConflictURL(), 'Email', 'saveUser');
     $('#uploadNewPicForm').on("submit", async function (event) {
         let photo = getFormData($('#uploadNewPicForm'));
@@ -1096,8 +1169,10 @@ async function renderAddNewPhoto()/////////////
         event.preventDefault();
         showWaitingGif();
         let result = await API.CreatePhoto(photo);
-        if (result) {
-            renderPhotosList();
+        if (result != null) {
+            saveContentScrollPosition();
+            currentETagPhotos = result.ETag
+            renderPhotosList(true);
         }
         else {
             renderError("Un problème est survenu!");
