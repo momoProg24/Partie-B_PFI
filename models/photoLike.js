@@ -16,6 +16,7 @@ export default class PhotoLike extends Model {
         let usersRepository = new Repository(new UserModel());
         instance.Owner = usersRepository.get(instance.UserId);
         instance.OwnerName = instance.Owner.Name;
+        
         return instance;
     }
 }
