@@ -71,7 +71,7 @@
 }
 
 .photoCreationDate {
-    font-size: 0.8em !important;
+    font-size: 0.65em !important;
     color: dodgerblue;
     display: grid;
     grid-template-columns: auto 95px;
